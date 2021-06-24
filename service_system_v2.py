@@ -8,12 +8,6 @@ def poisson():
 		time_sequence.append([np.random.exponential(scale=1/lmb, size=None), np.random.randint(l_min,l_max)])
 	return time_sequence
 
-def determenistic():
-	time_sequence=[]
-	for i in range(N):
-		time_sequence.append([tau_0, np.random.randint(l_min,l_max)])
-	return time_sequence
-
 def service_system(time_sequence, N_0):
 	q=0	#quantity of packages in the storage
 	time=0
@@ -39,7 +33,10 @@ def service_system(time_sequence, N_0):
 			time_total+=time	#list of package processing time
 			time_package_out.append(time_total)	#list of package processing time	
 			rho=lmb/mu 	#calc rho for this package
-			P_b = P_n_calc(N_0-1, rho)
+			if N_0>=N**2:
+				P_b=0
+			else:
+				P_b = P_n_calc(N_0-1, rho)
 			gamma.append(lmb*(1-P_b))
 			q-=1
 			mu_list.append(mu)
@@ -57,29 +54,18 @@ def service_system(time_sequence, N_0):
 		mu_av = calc_average_value(mu_list)
 	return mu_av, gamma_av, T_av, packages_rejected
 
-
 def MM1N0():
 	global N_0
-	N_0=10**2
+	N_0=N//2
 	time_sequence=poisson()
 	return service_system(time_sequence, N_0)
 
 def MM1infty():
 	global N_0
-	N_0=N
+	N_0=N**2
 	time_sequence=poisson()
 	return service_system(time_sequence, N_0)
 	
-def plotter(x, y, xlabel, ylabel, title):
-	plt.grid()
-	plt.xlabel(xlabel)
-	plt.ylabel(ylabel)
-	plt.title(title)
-	plt.plot(x, y)
-	plt.tight_layout()
-	plt.savefig(title+'.eps')
-	plt.show()
-
 def plot_scatter(x, y, xlabel, ylabel, title):
 	plt.grid()
 	plt.xlabel(xlabel)
@@ -88,6 +74,40 @@ def plot_scatter(x, y, xlabel, ylabel, title):
 	plt.scatter(x, y)
 	plt.tight_layout()
 	plt.savefig(title+'.eps')
+	plt.show()
+
+def plot_perfomance(SS_type):
+	plt.grid()
+	plt.xlabel(r'Channel utilization rate $\rho$')
+	plt.ylabel(r'Specific SS perfomance $\frac{\gamma}{\mu}$')
+	plt.title('SS perfomance on rho '+SS_type)
+	theor_perfomance=[]
+	if SS_type=='MM1N0':
+		for i in range(len(rho_list)):
+			theor_perfomance.append(rho_list[i]*((1-rho_list[i]**N_0))/(1-rho_list[i]**(N_0+1)))
+	elif SS_type=='MM1infty':
+		for i in range(len(rho_list)):
+			theor_perfomance.append(rho_list[i])
+	plt.scatter(rho_list, gammadermu, label='Experiment')
+	plt.scatter(rho_list, theor_perfomance, label='Theory')
+	plt.legend(loc='best')
+	plt.tight_layout()
+	plt.savefig('SS perfomance on rho'+SS_type+'.eps')
+	plt.show()
+
+def plot_delay(SS_type):
+	plt.grid()
+	plt.xlabel(r'Channel utilization rate $\rho$')
+	plt.ylabel(r'Specific average delay time $T_{av} \mu$')
+	plt.title('Delay time on rho '+SS_type)
+	theor_delay=[]
+	for i in range(len(rho_list)):
+		theor_delay.append(1/(1-rho_list[i]))
+	plt.scatter(rho_list, muxT_av, label='Experiment')
+	plt.scatter(rho_list, theor_delay, label='Theory')
+	plt.legend(loc='best')
+	plt.tight_layout()
+	plt.savefig('Delay time on rho'+SS_type+'.eps')
 	plt.show()
 
 def timeofprocessing(time_in, time_out):
@@ -118,9 +138,12 @@ def tau_calc(time_package_out):
 	return tau
 
 def P_n_calc(q, rho):
-	if rho>=1.0:
+	if rho==1.0:
 		rho=1-10**-6
-	P_n=(1-rho)/(1-rho**(N_0+1))*rho**(q+1)	#q+1=n (packages in service system)
+	try:
+		P_n=(1-rho)/(1-rho**(N_0+1))*rho**(q+1)	#q+1=n (packages in service system)
+	except:
+		P_n=(1-rho)*rho**(q+1)	#q+1=n (packages in service system)
 	return P_n
 
 def calc_average_value(value_list):
@@ -133,11 +156,11 @@ def calc_average_value(value_list):
 	return av_value
 
 def main(SS_type):
-	global lmb
+	global lmb, rho_list, muxT_av, gammadermu
 	gamma_lmb, T_lmb, lmb_list, mu_list = [], [], [], []
 	rho_list, muxT_av, gammadermu = [], [], []
 	lmb=0
-	for i in range(100):
+	for i in range(1000):
 		lmb+=10
 		if SS_type=='MM1N0':
 			mu_av, gamma_av, T_av, packages_rejected= MM1N0()	#Calc MM1N0 SS
@@ -157,16 +180,16 @@ def main(SS_type):
 		gammadermu.append(gamma_lmb[i]/mu_list[i])
 	# plotter(lmb_list, T_lmb, r'Package speed $\lambda$', r'Average package delay time $T_{av}$', 'Average delay time')
 	# plotter(lmb_list, gamma_lmb, r'Package speed $\lambda$', r'Average SS perfomance $\gamma$', 'SS perfomance gamma(lmb)')
-	plot_scatter(rho_list, muxT_av, r'Channel utilization rate $\rho$', r'Specific average delay time $T_{av} \mu$', 'Delay time on rho'+SS_type)
-	plot_scatter(rho_list, gammadermu, r'Channel utilization rate $\rho$', r'Specific SS perfomance $\frac{\gamma}{\mu}$', 'SS perfomance on rho'+SS_type)
+	plot_delay(SS_type)
+	plot_perfomance(SS_type)
 
 
 #############DATA INIT#############
-C=10**3	#throughput
+N=10**2
 l_min=1
 l_max=10
-N=10**3
-tau_0=10
+C=2*10**6/N	#throughput
+tau_0=1
 ###################################
 main('MM1N0')
 main('MM1infty')
